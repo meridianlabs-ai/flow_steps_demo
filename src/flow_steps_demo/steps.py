@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 from inspect_ai.log import EvalLog
 
 from inspect_flow import step
@@ -56,7 +58,6 @@ def qa_auto(
     scan_dir = f"{SCAN_DIR}/{model}" if model else SCAN_DIR
     scanner = refusal_classifier()
 
-    # TODO: Update with helper function #664
     # Scan all target logs in a single batch call
     status = scan(
         scans=scan_dir,
@@ -65,9 +66,8 @@ def qa_auto(
         model=scan_model,
     )
 
-    # Read per-transcript results so we can attribute to individual logs
-    scan_df = scan_results_df(status.location, scanner="refusal_classifier")
-    df = scan_df.scanners["refusal_classifier"]
+    # Attribute scan results back to individual logs
+    statuses = scan_status_per_log(status.location, target)
 
     # Write shared markdown report
     summary_path = UPath(scan_dir) / "qa_summary.md"
@@ -75,33 +75,26 @@ def qa_auto(
 
     results: list[EvalLog] = []
     for log in target:
-        # Filter scan results to this log's transcripts.
-        # Normalize: strip file:// scheme for local paths, keep s3:// etc as-is.
-        loc = UPath(log.location)
-        log_uri = loc.resolve().path if loc.protocol in ("", "file") else str(loc)
-        log_rows = df[df["transcript_source_uri"] == log_uri]
-        # llm_scanner returns letter codes: "A" = first answer (NO_REFUSAL)
-        refusal_count = (
-            int((log_rows["value"] != "A").sum()) if not log_rows.empty else 0
-        )
-        scan_count = len(log_rows)
-        has_refusal = refusal_count > 0
-        has_errors = (
-            log_rows["scan_error"].notna().any()
-            if "scan_error" in log_rows.columns and not log_rows.empty
-            else False
-        )
+        s = statuses[log.location]
 
         # Add scan details and location to metadata
-        [log] = metadata(
-            [log],
+        log = metadata(
+            log,
             set={
                 "scans": status.location,
                 "scan_complete": status.complete,
-                "scan_errors": bool(has_errors),
-                "scan_has_refusal": has_refusal,
+                "scan_errors": s.has_errors,
+                "scan_has_refusal": s.has_refusal,
             },
         )
+
+        # If scan doesn't have errors tag with `TAG_QA_AUTO_DONE` and mark for manual review
+        if not s.has_errors:
+            log = tag(
+                log,
+                add=[TAG_QA_AUTO_DONE, TAG_QA_MANUAL_NEEDED],
+                remove=[TAG_QA_AUTO_NEEDED],
+            )
 
         # Append summary to shared markdown report
         args_lines = (
@@ -112,22 +105,13 @@ def qa_auto(
 - **Log:** `{log.location}`
 - **Task args:**
 {args_lines}
-- **Refusals:** {refusal_count}/{scan_count} (`refusal_classifier`)
+- **Refusals:** {s.refusal_count}/{s.scan_count} (`refusal_classifier`)
 - **Scan:** `{status.location}`
-- **Scan errors:** {int(has_errors)}
-- **Result:** {"REFUSAL DETECTED" if has_refusal else "PASS"}
+- **Scan errors:** {int(s.has_errors)}
+- **Result:** {"REFUSAL DETECTED" if s.has_refusal else "PASS"}
 
 """
         existing += section
-
-        # If scan doesn't have errors tag with `TAG_QA_AUTO_DONE` and mark for manual review
-        if not has_errors:
-            [log] = tag(
-                [log],
-                add=[TAG_QA_AUTO_DONE, TAG_QA_MANUAL_NEEDED],
-                remove=[TAG_QA_AUTO_NEEDED],
-            )
-
         results.append(log)
 
     summary_path.write_text(existing)
@@ -163,3 +147,51 @@ def promote(logs: list[EvalLog]) -> list[EvalLog]:
         source_prefix=f"{LOG_DIR_DEV}/",
         store=STORE_PATH,
     )
+
+
+@dataclass
+class LogScanStatus:
+    refusal_count: int
+    scan_count: int
+    has_refusal: bool
+    has_errors: bool
+
+
+def scan_status_per_log(
+    scan_location: str,
+    logs: list[EvalLog],
+) -> dict[str, LogScanStatus]:
+    """Attribute refusal_classifier scan results back to individual logs.
+
+    Reads the scan results DataFrame, normalizes each log's location URI,
+    and returns a dict keyed by log location with per-log scan status.
+    """
+    scan_df = scan_results_df(scan_location, scanner="refusal_classifier")
+    df = scan_df.scanners["refusal_classifier"]
+
+    result: dict[str, LogScanStatus] = {}
+    for log in logs:
+        # Normalize: strip file:// scheme for local paths, keep s3:// etc as-is.
+        loc = UPath(log.location)
+        log_uri = loc.resolve().path if loc.protocol in ("", "file") else str(loc)
+        log_rows = df[df["transcript_source_uri"] == log_uri]
+
+        # llm_scanner returns letter codes: "A" = first answer (NO_REFUSAL)
+        refusal_count = (
+            int((log_rows["value"] != "A").sum()) if not log_rows.empty else 0
+        )
+        scan_count = len(log_rows)
+        has_errors = (
+            log_rows["scan_error"].notna().any()
+            if "scan_error" in log_rows.columns and not log_rows.empty
+            else False
+        )
+
+        result[log.location] = LogScanStatus(
+            refusal_count=refusal_count,
+            scan_count=scan_count,
+            has_refusal=refusal_count > 0,
+            has_errors=bool(has_errors),
+        )
+
+    return result
