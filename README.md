@@ -111,7 +111,7 @@ The `qa_auto` step scans every log tagged `qa_auto_needed` using Scout's `refusa
 - Appends a section to a shared `qa_summary.md` report
 - If no errors: tags the log `qa_auto_done` + `qa_manual_needed`
 
-Every tag and metadata edit is recorded with provenance — by default the author is your git user (from `git config user.name` and `user.email`), along with a timestamp. You can see this in `log.log_updates` or in the Viewer.
+Every tag and metadata edit is recorded with provenance — by default the author is your git user (from `git config user.name` and `user.email`), along with a timestamp. You can see this in `log.log_updates` or in the Viewer (JSON tab).
 
 ### 5. Review logs in the Viewer
 

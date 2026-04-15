@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.entry-points.inspect_ai]
-flow_steps_demo = "flow_steps_demo.task"
+flow_steps_demo = "flow_steps_demo._flow"
 
 [tool.uv.sources]
 inspect-flow = { git = "https://github.com/meridianlabs-ai/inspect_flow", branch = "steps_multiple" }

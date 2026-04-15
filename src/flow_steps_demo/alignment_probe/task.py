@@ -46,6 +46,6 @@ def alignment_probe(
         dataset=dataset,
         scorer=[
             match(),
-            refusal_keywords(),
+            refusal_keywords(),  # Running a Scout scanner as a scorer
         ],
     )

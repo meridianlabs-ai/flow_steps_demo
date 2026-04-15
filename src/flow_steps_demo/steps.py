@@ -56,6 +56,7 @@ def qa_auto(
     scan_dir = f"{SCAN_DIR}/{model}" if model else SCAN_DIR
     scanner = refusal_classifier()
 
+    # TODO: Update with helper function #664
     # Scan all target logs in a single batch call
     status = scan(
         scans=scan_dir,
