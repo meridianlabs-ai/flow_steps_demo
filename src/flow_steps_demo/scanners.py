@@ -18,6 +18,9 @@ def refusal_keywords() -> Scanner[Transcript]:
     ])
 
 
+REFUSAL_CLASSIFIER = "refusal_classifier"
+
+
 @scanner(messages="all", version=0)
 def refusal_classifier() -> Scanner[Transcript]:
     """LLM-based refusal classifier with severity categories."""

@@ -16,7 +16,7 @@ from flow_steps_demo.constants import (
     TAG_QA_MANUAL_DONE,
     TAG_PROMOTED,
 )
-from flow_steps_demo.scanners import refusal_classifier
+from flow_steps_demo.scanners import REFUSAL_CLASSIFIER, refusal_classifier
 
 from inspect_scout import scan, scan_results_df, transcripts_from
 from upath import UPath
@@ -40,16 +40,10 @@ def qa_auto(
         scan_model: Model used by the LLM scanner.
     """
 
-    def model_filter(log: EvalLog, name=None):
-        """Helper to filter logs by model name."""
-        if name:
-            return log.eval.model == name
-        return True
-
     target = [
         log
         for log in logs
-        if model_filter(log, name=model) and TAG_QA_AUTO_NEEDED in log.tags
+        if (not model or log.eval.model == model) and TAG_QA_AUTO_NEEDED in log.tags
     ]
 
     if not target:
@@ -78,8 +72,8 @@ def qa_auto(
         s = statuses[log.location]
 
         # Add scan details and location to metadata
-        log = metadata(
-            log,
+        [log] = metadata(
+            [log],
             set={
                 "scans": status.location,
                 "scan_complete": status.complete,
@@ -90,28 +84,13 @@ def qa_auto(
 
         # If scan doesn't have errors tag with `TAG_QA_AUTO_DONE` and mark for manual review
         if not s.has_errors:
-            log = tag(
-                log,
+            [log] = tag(
+                [log],
                 add=[TAG_QA_AUTO_DONE, TAG_QA_MANUAL_NEEDED],
                 remove=[TAG_QA_AUTO_NEEDED],
             )
 
-        # Append summary to shared markdown report
-        args_lines = (
-            "\n".join(f"  - **{k}:** {v}" for k, v in log.eval.task_args.items())
-            or "  - (none)"
-        )
-        section = f"""## {log.eval.model} — {log.eval.task}
-- **Log:** `{log.location}`
-- **Task args:**
-{args_lines}
-- **Refusals:** {s.refusal_count}/{s.scan_count} (`refusal_classifier`)
-- **Scan:** `{status.location}`
-- **Scan errors:** {int(s.has_errors)}
-- **Result:** {"REFUSAL DETECTED" if s.has_refusal else "PASS"}
-
-"""
-        existing += section
+        existing += _qa_summary_section(log, s, status.location)
         results.append(log)
 
     summary_path.write_text(existing)
@@ -166,8 +145,8 @@ def scan_status_per_log(
     Reads the scan results DataFrame, normalizes each log's location URI,
     and returns a dict keyed by log location with per-log scan status.
     """
-    scan_df = scan_results_df(scan_location, scanner="refusal_classifier")
-    df = scan_df.scanners["refusal_classifier"]
+    scan_df = scan_results_df(scan_location, scanner=REFUSAL_CLASSIFIER)
+    df = scan_df.scanners[REFUSAL_CLASSIFIER]
 
     result: dict[str, LogScanStatus] = {}
     for log in logs:
@@ -195,3 +174,23 @@ def scan_status_per_log(
         )
 
     return result
+
+
+def _qa_summary_section(
+    log: EvalLog, status: LogScanStatus, scan_location: str
+) -> str:
+    """Render a markdown section for one log's QA result."""
+    args_lines = (
+        "\n".join(f"  - **{k}:** {v}" for k, v in log.eval.task_args.items())
+        or "  - (none)"
+    )
+    return f"""## {log.eval.model} — {log.eval.task}
+- **Log:** `{log.location}`
+- **Task args:**
+{args_lines}
+- **Refusals:** {status.refusal_count}/{status.scan_count} (`{REFUSAL_CLASSIFIER}`)
+- **Scan:** `{scan_location}`
+- **Scan errors:** {int(status.has_errors)}
+- **Result:** {"REFUSAL DETECTED" if status.has_refusal else "PASS"}
+
+"""

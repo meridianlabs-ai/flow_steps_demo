@@ -6,9 +6,8 @@ build-backend = "setuptools.build_meta"
 name = "flow-steps-demo"
 version = "0.1.0"
 description = "Demo project showcasing step-based workflow execution using Flow"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.14"
 dependencies = [
-    "inspect-ai",
     "inspect-flow",
     "inspect-scout",
     "openai",
@@ -20,5 +19,4 @@ dependencies = [
 flow_steps_demo = "flow_steps_demo._flow"
 
 [tool.uv.sources]
-inspect-flow = { git = "https://github.com/meridianlabs-ai/inspect_flow", branch = "steps_multiple" }
-inspect-ai = { git = "https://github.com/UKGovernmentBEIS/inspect_ai", branch = "main" }
+inspect-flow = { git = "https://github.com/meridianlabs-ai/inspect_flow", branch = "main" }

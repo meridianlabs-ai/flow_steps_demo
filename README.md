@@ -47,14 +47,16 @@ The scenario: we run a synthetic alignment probe against multiple models, automa
 ## Project structure
 
 ```
-_flow.py                         # Default FlowSpec + registers steps and filters
+_flow.py                         # Registers steps and filters for Flow discovery
 src/flow_steps_demo/
+├── _flow.py                     # Default FlowSpec + inspect_ai task entry point
 ├── constants.py                 # Bucket paths, tags, models, parameter lists
-├── task.py                      # @task alignment_probe — synthetic eval task
 ├── scanners.py                  # Scout scanners (refusal_keywords, refusal_classifier)
 ├── filters.py                   # Log filters (qa_done, scan_has_refusal)
 ├── steps.py                     # Flow steps (qa_auto, manual_review_done, promote)
-└── spec.py                      # FlowSpec factory — parametric sweep across models
+└── alignment_probe/
+    ├── task.py                  # @task alignment_probe — synthetic eval task
+    └── spec.py                  # FlowSpec factory — parametric sweep across models
 ```
 
 ## Walkthrough
@@ -65,12 +67,12 @@ Throughout this walkthrough we'll use a single model to keep things quick. The f
 
 ```bash
 # Check against the dev log dir
-flow check src/flow_steps_demo/spec.py \
+flow check src/flow_steps_demo/alignment_probe/spec.py \
     --arg model=openai/gpt-4o \
     --log-dir $FLOW_DEMO_BUCKET/dev/logs
 
 # Check against the prod log dir
-flow check src/flow_steps_demo/spec.py \
+flow check src/flow_steps_demo/alignment_probe/spec.py \
     --arg model=openai/gpt-4o \
     --log-dir $FLOW_DEMO_BUCKET/prod/logs
 ```
@@ -80,10 +82,10 @@ flow check src/flow_steps_demo/spec.py \
 ### 2. Run evaluations
 
 ```bash
-flow run src/flow_steps_demo/spec.py --arg model=openai/gpt-4o
+flow run src/flow_steps_demo/alignment_probe/spec.py --arg model=openai/gpt-4o
 ```
 
-Flow runs all 27 tasks against GPT-4o. Each task sends a single-sample alignment probe, scored by exact match and the `refusal_keywords` grep scanner. Logs are written to the dev log directory and indexed in the store. All logs are tagged `qa_auto_needed` (set in `_flow.py`).
+Flow runs all 27 tasks against GPT-4o. Each task sends a single-sample alignment probe, scored by exact match and the `refusal_keywords` grep scanner. Logs are written to the dev log directory and indexed in the store. All logs are tagged `qa_auto_needed` (set in `src/flow_steps_demo/_flow.py`).
 
 ### 3. List the logs
 
@@ -156,7 +158,7 @@ The `promote` step filters to logs where both automated and manual QA are comple
 ### 9. Check completeness again
 
 ```bash
-flow check src/flow_steps_demo/spec.py \
+flow check src/flow_steps_demo/alignment_probe/spec.py \
     --arg model=openai/gpt-4o \
     --log-dir $FLOW_DEMO_BUCKET/prod/logs
 ```
@@ -168,5 +170,5 @@ Promoted logs now live in the prod directory — the check should show 27/27 tas
 Run the same workflow for another model:
 
 ```bash
-flow run src/flow_steps_demo/spec.py --arg model=anthropic/claude-haiku-4-5-20251001
+flow run src/flow_steps_demo/alignment_probe/spec.py --arg model=anthropic/claude-haiku-4-5-20251001
 ```
