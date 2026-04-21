@@ -603,7 +603,7 @@ name = "exceptiongroup"
 version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
+    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/50/79/66800aadf48771f6b62f7eb014e352e5d06856655206165d775e675a02c9/exceptiongroup-1.3.1.tar.gz", hash = "sha256:8b412432c6055b0b7d14c310000ae93352ed6754f70fa8f7c34141f91c4e3219", size = 30371, upload-time = "2025-11-21T23:01:54.787Z" }
 wheels = [
@@ -641,7 +641,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "anthropic" },
-    { name = "inspect-flow", git = "https://github.com/meridianlabs-ai/inspect_flow?branch=main" },
+    { name = "inspect-flow", specifier = ">=0.8" },
     { name = "inspect-scout" },
     { name = "openai" },
     { name = "xai-sdk" },
@@ -1022,8 +1022,8 @@ wheels = [
 
 [[package]]
 name = "inspect-flow"
-version = "0.7.1.dev40"
-source = { git = "https://github.com/meridianlabs-ai/inspect_flow?branch=main#ba8b1e6eaf7472915bc7911469c2f1af74681074" }
+version = "0.8.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
     { name = "dateparser" },
@@ -1036,6 +1036,10 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0a/31/7af66bb134bf5f150add4129310823851df4e88e60fdfe2da66ab20df4d2/inspect_flow-0.8.0.tar.gz", hash = "sha256:01e140b73d17fbb0bf14d371c01a54baf763755909d6379f8f91debb6606d3eb", size = 98952, upload-time = "2026-04-21T14:49:56.354Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/95/f7/37689df561c50640f777594d7392d4b60ed3a4dced5d9f9742d41ae391bc/inspect_flow-0.8.0-py3-none-any.whl", hash = "sha256:1baa30766464cb5ed3539e16c83fa92994e992940a94d284511eb9af40ab23e8", size = 128135, upload-time = "2026-04-21T14:49:54.952Z" },
 ]
 
 [[package]]
