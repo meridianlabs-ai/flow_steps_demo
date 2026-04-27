@@ -63,18 +63,20 @@ src/flow_steps_demo/
 
 Throughout this walkthrough we'll use a single model to keep things quick. The full spec covers 6 models x 3 protocols x 3 misalignment types x 3 themes = 162 tasks, but filtering to one model gives us 27.
 
+> **Tip — `@CONST` shorthand.** `flow` resolves `@NAME` tokens in CLI args to module-level string constants found in any `_flow.py` walking up from your current directory. This demo exposes its constants in [_flow.py](_flow.py) — so `@LOG_DIR_DEV` becomes `$FLOW_DEMO_BUCKET/dev/logs`, `@TAG_QA_MANUAL_NEEDED` becomes `qa_manual_needed`, etc. Use `@file.py@NAME` to resolve from a specific file. Note: this is a `flow` CLI feature only — `inspect view` still wants the literal path.
+
 ### 1. Check completeness — nothing done yet
 
 ```bash
 # Check against the dev log dir
 flow check src/flow_steps_demo/alignment_probe/spec.py \
     --arg model=openai/gpt-4o \
-    --log-dir $FLOW_DEMO_BUCKET/dev/logs
+    --log-dir @LOG_DIR_DEV
 
 # Check against the prod log dir
 flow check src/flow_steps_demo/alignment_probe/spec.py \
     --arg model=openai/gpt-4o \
-    --log-dir $FLOW_DEMO_BUCKET/prod/logs
+    --log-dir @LOG_DIR_PROD
 ```
 
 `flow check` compares the spec against existing logs in a given directory. On a fresh start both are empty — 0/27 tasks completed in dev and prod.
@@ -90,7 +92,7 @@ Flow runs all 27 tasks against GPT-4o. Each task sends a single-sample alignment
 ### 3. List the logs
 
 ```bash
-flow list log $FLOW_DEMO_BUCKET/dev/logs
+flow list log @LOG_DIR_DEV
 ```
 
 Shows all eval logs in the dev directory with their status, model, task args, and tags.
@@ -98,13 +100,13 @@ Shows all eval logs in the dev directory with their status, model, task args, an
 You can also follow logs live while `flow run` is still writing them — the display refreshes every N seconds:
 
 ```bash
-flow list log $FLOW_DEMO_BUCKET/dev/logs --live 5
+flow list log @LOG_DIR_DEV --live 5
 ```
 
 ### 4. Run automated QA
 
 ```bash
-flow step qa_auto $FLOW_DEMO_BUCKET/dev/logs
+flow step qa_auto @LOG_DIR_DEV
 ```
 
 The `qa_auto` step scans every log tagged `qa_auto_needed` using Scout's `refusal_classifier` (an LLM-based scanner). For each log it:
@@ -128,13 +130,13 @@ inspect view $FLOW_DEMO_BUCKET/dev/logs
 Use the `scan_has_refusal` filter to find logs where the scanner detected a refusal:
 
 ```bash
-flow list log $FLOW_DEMO_BUCKET/dev/logs --filter scan_has_refusal
+flow list log @LOG_DIR_DEV --filter scan_has_refusal
 ```
 
 Or find logs that passed automated QA and are waiting for manual review:
 
 ```bash
-flow list log $FLOW_DEMO_BUCKET/dev/logs --tag qa_manual_needed
+flow list log @LOG_DIR_DEV --tag @TAG_QA_MANUAL_NEEDED
 ```
 
 ### 7. Mark manual review as done
@@ -142,7 +144,7 @@ flow list log $FLOW_DEMO_BUCKET/dev/logs --tag qa_manual_needed
 After reviewing in the Viewer, advance the logs past manual review:
 
 ```bash
-flow step manual_review_done $FLOW_DEMO_BUCKET/dev/logs
+flow step manual_review_done @LOG_DIR_DEV
 ```
 
 This adds the `qa_manual_done` tag and removes `qa_manual_needed`.
@@ -150,7 +152,7 @@ This adds the `qa_manual_done` tag and removes `qa_manual_needed`.
 ### 8. Promote to production
 
 ```bash
-flow step promote $FLOW_DEMO_BUCKET/dev/logs
+flow step promote @LOG_DIR_DEV
 ```
 
 The `promote` step filters to logs where both automated and manual QA are complete (`qa_done` filter), tags them as `promoted`, and copies them to the production log directory.
@@ -160,7 +162,7 @@ The `promote` step filters to logs where both automated and manual QA are comple
 ```bash
 flow check src/flow_steps_demo/alignment_probe/spec.py \
     --arg model=openai/gpt-4o \
-    --log-dir $FLOW_DEMO_BUCKET/prod/logs
+    --log-dir @LOG_DIR_PROD
 ```
 
 Promoted logs now live in the prod directory — the check should show 27/27 tasks completed.
