@@ -109,11 +109,13 @@ flow list log @LOG_DIR_DEV --live 5
 flow step qa_auto @LOG_DIR_DEV
 ```
 
-The `qa_auto` step scans every log tagged `qa_auto_needed` using Scout's `refusal_classifier` (an LLM-based scanner). For each log it:
+The `qa_auto` step scans every log tagged `qa_auto_needed` using Scout's `refusal_classifier` (an LLM-based scanner). It wraps Flow's built-in `inspect_flow.api.scan` to invoke Scout — which handles the transcript plumbing and writes a `scout.yaml` project file alongside the scans dir — then does the demo-specific work on top. For each log it:
 
 - Records scan results (refusal detected or not) in log metadata
 - Appends a section to a shared `qa_summary.md` report
 - If no errors: tags the log `qa_auto_done` + `qa_manual_needed`
+
+> **Tip — `flow step scan`.** If you just want to run scanners against a log dir without the demo's extra attribution/summary/tagging work, Flow ships a built-in `flow step scan` command that exposes the same scan API directly from the CLI. See `flow step scan --help`.
 
 Every tag and metadata edit is recorded with provenance — by default the author is your git user (from `git config user.name` and `user.email`), along with a timestamp. You can see this in `log.log_updates` or in the Viewer (JSON tab).
 

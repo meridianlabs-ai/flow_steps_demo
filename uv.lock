@@ -10,14 +10,14 @@ resolution-markers = [
 
 [[package]]
 name = "agent-client-protocol"
-version = "0.9.0"
+version = "0.10.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/eb/13/3b893421369767e7043cc115d6ef0df417c298b84563be3a12df0416158d/agent_client_protocol-0.9.0.tar.gz", hash = "sha256:f744c48ab9af0f0b4452e5ab5498d61bcab97c26dbe7d6feec5fd36de49be30b", size = 71853, upload-time = "2026-03-26T01:21:00.379Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/88/a0/3b96cd8374725c69bc3dae9fcc2082f3f6cafec1be35d24d7af0f8c3265f/agent_client_protocol-0.10.1.tar.gz", hash = "sha256:355c65ca19f0568344aafc2c1552b7066a8fc491df23ab28e7e253c6c9a85a25", size = 81924, upload-time = "2026-05-24T18:46:44.444Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8f/ed/c284543c08aa443a4ef2c8bd120be51da8433dd174c01749b5d87c333f22/agent_client_protocol-0.9.0-py3-none-any.whl", hash = "sha256:06911500b51d8cb69112544e2be01fc5e7db39ef88fecbc3848c5c6f194798ee", size = 56850, upload-time = "2026-03-26T01:20:59.252Z" },
+    { url = "https://files.pythonhosted.org/packages/7b/18/d8c7ff337cf621ea79a84006a7252ff057bfb5767549bb102cc6649f4ec2/agent_client_protocol-0.10.1-py3-none-any.whl", hash = "sha256:a03d3198f4d772f2e0ec012c00ac1cce131b4710220a3dc9fae3c991d047c750", size = 65401, upload-time = "2026-05-24T18:46:43.202Z" },
 ]
 
 [[package]]
@@ -641,7 +641,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "anthropic" },
-    { name = "inspect-flow", git = "https://github.com/meridianlabs-ai/inspect_flow?branch=main" },
+    { name = "inspect-flow", specifier = ">=0.9.0" },
     { name = "inspect-scout" },
     { name = "openai" },
     { name = "xai-sdk" },
@@ -972,11 +972,11 @@ wheels = [
 
 [[package]]
 name = "inspect-ai"
-version = "0.3.209"
+version = "0.3.232"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "agent-client-protocol" },
     { name = "aioboto3" },
-    { name = "aiohttp" },
     { name = "anyio" },
     { name = "beautifulsoup4" },
     { name = "boto3" },
@@ -984,6 +984,7 @@ dependencies = [
     { name = "debugpy" },
     { name = "docstring-parser" },
     { name = "exceptiongroup", marker = "python_full_version < '3.11'" },
+    { name = "fastapi" },
     { name = "fsspec" },
     { name = "httpx" },
     { name = "ijson" },
@@ -1011,25 +1012,27 @@ dependencies = [
     { name = "tiktoken" },
     { name = "typing-extensions" },
     { name = "universal-pathlib" },
+    { name = "uvicorn" },
     { name = "zipfile-zstd" },
     { name = "zipp" },
     { name = "zstandard" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a8/cd/e61709a04a83468514f65361863e8b24f7f1031ff4ac2fc5709b8289cb7f/inspect_ai-0.3.209.tar.gz", hash = "sha256:aea28616b61ddaacc638a2f447054b7b25283f2da128f60bed079424b9d7a70a", size = 45237674, upload-time = "2026-04-20T19:03:33.871Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5d/38/d1b4edb1193c666ef6b573b9f0d831c2cb132b90680ff1a3fda229af18ac/inspect_ai-0.3.232.tar.gz", hash = "sha256:c371c52193306be864329f9b61b187fb568f34f9be56d1cfa06234fa94b98c4f", size = 46947703, upload-time = "2026-05-31T19:40:36.644Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f0/78/408658b088b1356587be9ce2b85ffd861121ee4b95dc453dc4f2db182ca6/inspect_ai-0.3.209-py3-none-any.whl", hash = "sha256:ebc0f8cc2e3d3fb3762c21812affa18cb3d3257542b53ff7e64e589fa0784219", size = 35957843, upload-time = "2026-04-20T19:03:27.774Z" },
+    { url = "https://files.pythonhosted.org/packages/e1/34/a09d38147997e75c1e665490a31176b1c50f7439ce00d0396d9703effa21/inspect_ai-0.3.232-py3-none-any.whl", hash = "sha256:1599fc40f3642f2acbd2e2fb310bac41cb5f6eb3bc032b07b12c1eeeadebcb65", size = 36429750, upload-time = "2026-05-31T19:40:23.263Z" },
 ]
 
 [[package]]
 name = "inspect-flow"
-version = "0.8.1.dev3"
-source = { git = "https://github.com/meridianlabs-ai/inspect_flow?branch=main#1eb4f6d668caaf1601d7bcf912cdf94167bff809" }
+version = "0.9.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
     { name = "dateparser" },
     { name = "deltalake" },
     { name = "griffe" },
     { name = "inspect-ai" },
+    { name = "inspect-scout" },
     { name = "packaging" },
     { name = "pyarrow" },
     { name = "pydantic" },
@@ -1037,10 +1040,14 @@ dependencies = [
     { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "typing-extensions" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/83/b0/1a16772f35fd1133b6384f164796c5c4862a9297cb88ff2e0bccba3b789a/inspect_flow-0.9.0.tar.gz", hash = "sha256:2d874c88182b5abafb6d3b3ec16dd16670a3775dae6f4a4e5f80cdbca2abbe8d", size = 110043, upload-time = "2026-05-19T16:00:07.465Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/38/4b/29310cb2061345083a9d6d5c0ccf37af3caccfa2e2de97861a5fcce098f3/inspect_flow-0.9.0-py3-none-any.whl", hash = "sha256:8fb10c782044c2803a79065559368c876d23e8ada274412959a690194adde56c", size = 141191, upload-time = "2026-05-19T16:00:05.873Z" },
+]
 
 [[package]]
 name = "inspect-scout"
-version = "0.4.27"
+version = "0.4.38"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -1075,14 +1082,14 @@ dependencies = [
     { name = "wrapt" },
     { name = "zstandard" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8e/23/61fd4fde268ee8fd5fbbdebe09e4cbdeeef44b360a90f561e84350579216/inspect_scout-0.4.27.tar.gz", hash = "sha256:2c8d5950386607cc6ef21bdad4a3762a8944cd4197923ddb714d6b21c02d7ca9", size = 2492616, upload-time = "2026-04-20T19:39:08.332Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/12/d1/c701539a02ecda95b179b24f0bd893d87ec7fd3106220699069850889024/inspect_scout-0.4.38.tar.gz", hash = "sha256:6401eddff7a4f97356fa7e59136c6b09a97efb9f20bb3ef62eb3595d611536b6", size = 2627771, upload-time = "2026-05-25T15:13:00.406Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0b/b9/d3b1a324f0b5cf07ab4ba5c5fd5242a7a9d4197662a302572d6457f03aca/inspect_scout-0.4.27-py3-none-any.whl", hash = "sha256:11c98d690495f01242c3d5e5db7ec716fb3e5e698ddc1bb58e96c2bd9164f3fe", size = 2603102, upload-time = "2026-04-20T19:39:06.641Z" },
+    { url = "https://files.pythonhosted.org/packages/b7/d6/66ecfe5938f593aefb47135fa15125ac039cce553ba5af7c94730f551e1f/inspect_scout-0.4.38-py3-none-any.whl", hash = "sha256:7009de3e80eec5704287fffc0efc49ab0185792a1d02fad81869b8fe34910554", size = 2740084, upload-time = "2026-05-25T15:12:58.164Z" },
 ]
 
 [[package]]
 name = "inspect-swe"
-version = "0.2.47"
+version = "0.2.59"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "agent-client-protocol" },
@@ -1096,9 +1103,9 @@ dependencies = [
     { name = "sniffio" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d7/6d/08d7f6f24fa24cecadfec461bb02a4a3d0f645dbbec03bd6e9999d5b9d72/inspect_swe-0.2.47.tar.gz", hash = "sha256:5920f4573222a0cb7034011f7815c9bad841ccf2a0b83101f9afde60ed6c99d3", size = 68093, upload-time = "2026-04-13T19:47:20.937Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c9/f2/5304e82a1e779877436c7004c47818d032dd4cc70f3ee40d4d692aa7b271/inspect_swe-0.2.59.tar.gz", hash = "sha256:473d51c33fba01511edccf20d3a56f1265fa3b5210430232a76d99de8318c18a", size = 90996, upload-time = "2026-06-01T01:18:08.708Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/65/98/c240888167e0018ed84f448c92bd65b41a877275c4a7f4e09823c8220237/inspect_swe-0.2.47-py3-none-any.whl", hash = "sha256:ed5c22b22ebae73ac0d597f6e045908f6c3a3b229ca164cf3c5c7a24a9dcd43a", size = 95100, upload-time = "2026-04-13T19:47:19.463Z" },
+    { url = "https://files.pythonhosted.org/packages/67/a2/49e0d76dafb891130035595771f13402776d112dec8cbccd4eedc8549b1b/inspect_swe-0.2.59-py3-none-any.whl", hash = "sha256:524bd2337eb480ffd0b90954d32d66589a7c55b5080e899c62dedd035a576341", size = 122956, upload-time = "2026-06-01T01:18:07.362Z" },
 ]
 
 [[package]]

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from inspect_ai.log import EvalLog
 
 from inspect_flow import step
-from inspect_flow.api import copy, tag, metadata
+from inspect_flow.api import copy, scan, tag, metadata
 
 from flow_steps_demo.constants import (
     STORE_PATH,
@@ -18,7 +18,7 @@ from flow_steps_demo.constants import (
 )
 from flow_steps_demo.scanners import REFUSAL_CLASSIFIER, refusal_classifier
 
-from inspect_scout import scan, scan_results_df, transcripts_from
+from inspect_scout import scan_results_df
 from upath import UPath
 
 from flow_steps_demo.filters import qa_done
@@ -50,13 +50,12 @@ def qa_auto(
         return []
 
     scan_dir = f"{SCAN_DIR}/{model}" if model else SCAN_DIR
-    scanner = refusal_classifier()
 
     # Scan all target logs in a single batch call
     status = scan(
+        target,
+        scanners=[refusal_classifier()],
         scans=scan_dir,
-        scanners=[scanner],
-        transcripts=transcripts_from([log.location for log in target]),
         model=scan_model,
     )
 
