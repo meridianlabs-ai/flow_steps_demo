@@ -1,9 +1,13 @@
+import inspect
 from dataclasses import dataclass
+from typing import Any, Callable, cast
 
 from inspect_ai.log import EvalLog
+from inspect_ai._util.registry import registry_lookup
 
 from inspect_flow import step
 from inspect_flow.api import copy, scan, tag, metadata
+from inspect_flow._util.console import console
 
 from flow_steps_demo.constants import (
     STORE_PATH,
@@ -22,6 +26,67 @@ from inspect_scout import scan_results_df
 from upath import UPath
 
 from flow_steps_demo.filters import qa_done
+
+
+def _ordered(args: dict[str, Any], signature_order: list[str]) -> dict[str, Any]:
+    """Rebuild `args` with keys in task-signature order."""
+    ordered = {k: args[k] for k in signature_order if k in args}
+    ordered.update({k: v for k, v in args.items() if k not in ordered})
+    return ordered
+
+
+def _signature_order(task: str) -> list[str] | None:
+    """Parameter order of a registered task, or None if it isn't importable here."""
+    fn = cast(Callable[..., Any] | None, registry_lookup("task", task))
+    if fn is None:
+        return None
+    return list(inspect.signature(fn).parameters)
+
+
+@step
+def align_task_args(
+    logs: list[EvalLog],
+    args: dict[str, Any],
+    task: str | None = None,
+) -> list[EvalLog]:
+    """Backfill task args into existing log headers so an updated task recognises them.
+
+    Only handles added or changed args. Removing an arg is not supported.
+
+    Run (patches the store's logs):
+        flow step align_task_args --store @STORE_PATH --args cohort=pilot \\
+            --task flow_steps_demo/alignment_probe
+
+    Run on a log dir or single log file:
+        flow step align_task_args path/to/log.eval --args cohort=pilot
+    Runing on a log dir or single log file does NOT update the store. Re-import
+    the patched paths afterwards so re-runs match from the store too:
+        flow store import path/to/log.eval --store @STORE_PATH
+
+    Args:
+        args: Task args to inject, keyed by arg name (e.g. {"cohort": "pilot"}).
+        task: If set, only patch logs whose `eval.task` matches this registry name.
+    """
+    if not args:
+        raise ValueError("`args` must contain at least one task arg to inject.")
+
+    order_cache: dict[str, list[str] | None] = {}
+    results: list[EvalLog] = []
+    for log in logs:
+        log_task = log.eval.task
+        if task is not None and log_task != task:
+            continue
+        order = order_cache.setdefault(log_task, _signature_order(log_task))
+        # Only patch tasks that actually declare every injected arg.
+        if order is None or not all(k in order for k in args):
+            continue
+        log.eval.task_args = _ordered({**log.eval.task_args, **args}, order)
+        log.eval.task_args_passed = _ordered(
+            {**log.eval.task_args_passed, **args}, order
+        )
+        results.append(log)
+
+    return results
 
 
 @step
