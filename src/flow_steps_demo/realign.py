@@ -231,10 +231,16 @@ def plan_realignment(
     }
 
     # Pass 1: perfect (identifier-equal) matches claim their target outright.
+    # If two logs share the same log_id, keep the better one (is_better_log)
+    # rather than letting iteration order silently pick the last one seen.
+    claimed: set[str] = set()
     for log in logs:
         log_id = log_ids.get(log.location)
         if log_id in plans:
-            plans[log_id].perfect = log
+            existing = plans[log_id].perfect
+            if existing is None or is_better_log(log, existing):
+                plans[log_id].perfect = log
+            claimed.add(log.location)
 
     non_perfect = [plan for plan in plans.values() if plan.perfect is None]
     candidates: dict[str, list[EvalLog]] = {plan.target_id: [] for plan in non_perfect}
@@ -242,9 +248,14 @@ def plan_realignment(
     # Pass 2: for the remaining targets, work out how many of them each log is
     # compatible with before assigning it anywhere, so a log that fits more
     # than one target becomes ambiguous instead of being claimed by whichever
-    # target happened to be visited first.
+    # target happened to be visited first. Logs already claimed as a perfect
+    # match in pass 1 must be excluded here entirely - otherwise a perfect
+    # match for one target can leak into a sibling target's incompatible or
+    # even chosen bucket.
     for log in logs:
         if log_ids.get(log.location) is None:
+            continue
+        if log.location in claimed:
             continue
         if task and not fnmatch(log.eval.task, task):
             continue

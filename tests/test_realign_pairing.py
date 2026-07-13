@@ -97,6 +97,28 @@ def test_perfect_match_clears_other_buckets(make_header):
     assert p.chosen == [] and p.skipped == [] and p.incompatible == [] and p.ambiguous == []
 
 
+def test_perfect_log_does_not_leak_into_sibling_targets(make_header):
+    targets = targets_for_mockllm()  # 27 real targets
+    # pick one target; build a synthetic log; key a fake dict by the log's own
+    # id BUT keep all other real targets so pass 2 has 26 non-perfect targets
+    target_id, resolved = next(iter(targets.items()))
+    perfect = make_header(
+        task_args=dict(resolved.task_args),
+        location="logs/perfect.eval",
+    )
+    fake_targets = dict(targets)
+    del fake_targets[target_id]
+    fake_targets[task_identifier(perfect, None)] = resolved
+    plans = plan_realignment(fake_targets, [perfect])
+    owning = [p for p in plans if p.perfect is not None]
+    assert len(owning) == 1
+    others = [p for p in plans if p.perfect is None]
+    assert all(
+        not p.chosen and not p.skipped and not p.incompatible and not p.ambiguous
+        for p in others
+    )
+
+
 def test_log_missing_matrix_key_is_ambiguous(make_header):
     targets = targets_for_mockllm()
     # no "theme" key -> compatible with all 3 theme variants of this tp/mt combo
