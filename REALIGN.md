@@ -132,9 +132,10 @@ Nothing about a realigned copy pretends to be the original. Every copy
 carries:
 
 - **Filename**: the original name with a `+realigned` suffix inserted
-  before the extension (e.g. `2025-01-01T00-00-00+00-00_task_abc123
-  +realigned.eval`), so the timestamp in the name is preserved and the
-  copy sorts next to its source.
+  before the extension (e.g.
+  `2025-01-01T00-00-00+00-00_task_abc123+realigned.eval`), so the
+  timestamp in the name is preserved and the copy sorts next to its
+  source.
 - **Tag**: `realigned`, with a `reason` string listing exactly which
   identifier fields were rewritten (e.g. `"realigned to match spec:
   task_args_passed"`).

@@ -468,6 +468,7 @@ def realign(
 
     results: list[EvalLog] = []
     with step_context(logs) as context:
+        context.write_dirty()
         for p in plans:
             for original in p.chosen:
                 stem, ext = os.path.splitext(basename(original.location))
