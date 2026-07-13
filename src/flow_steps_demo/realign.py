@@ -27,6 +27,7 @@ from inspect_ai.log import EvalLog
 from inspect_ai.model import GenerateConfig, get_model
 from inspect_flow._config.load import ConfigOptions, int_load_spec
 from inspect_flow._runner.instantiate import instantiate_tasks
+from inspect_flow._runner.resolve import resolve_spec
 from inspect_flow._types.flow_types import FlowOptions
 from inspect_flow._util.not_given import default_none
 from pydantic_core import to_json
@@ -152,8 +153,10 @@ def resolve_spec_targets(
     ResolvedTask so header field values can be extracted from it.
     """
     spec_path = absolute_file_path(spec_file)
+    base_dir = str(Path(spec_path).parent)
     spec = int_load_spec(spec_path, options=ConfigOptions(args=spec_args or {}))
-    instantiated = instantiate_tasks(spec, base_dir=str(Path(spec_path).parent))
+    spec = resolve_spec(spec, base_dir)
+    instantiated = instantiate_tasks(spec, base_dir=base_dir)
     options = spec.options or FlowOptions()
     resolved, _ = eval_resolve_tasks(
         tasks=[t.task for t in instantiated],

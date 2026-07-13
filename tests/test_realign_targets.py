@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from flow_steps_demo.realign import resolve_spec_targets, target_fields
 
 SPEC = "src/flow_steps_demo/alignment_probe/spec.py"
@@ -22,3 +24,29 @@ def test_target_fields_shape():
         "misalignment_type",
         "theme",
     }
+
+
+def test_spec_defaults_are_applied(tmp_path):
+    spec_file = tmp_path / "spec_with_defaults.py"
+    spec_file.write_text(
+        """
+from inspect_flow import FlowDefaults, FlowSpec, FlowTask
+
+def spec():
+    return FlowSpec(
+        log_dir="logs",
+        defaults=FlowDefaults(task=FlowTask(args={"theme": "self_preservation"})),
+        tasks=[
+            FlowTask(
+                name="flow_steps_demo/alignment_probe",
+                model="mockllm/model",
+            )
+        ],
+    )
+"""
+    )
+    targets = resolve_spec_targets(str(spec_file))
+    assert len(targets) == 1
+    resolved = next(iter(targets.values()))
+    # Default args should be applied to the task
+    assert resolved.task_args["theme"] == "self_preservation"
