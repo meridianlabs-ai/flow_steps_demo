@@ -295,3 +295,45 @@ def plan_realignment(
         plan.skipped = [] if realign_all else ordered[1:]
 
     return list(plans.values())
+
+
+def apply_target_fields(
+    header: EvalLog, resolved: ResolvedTask, target_id: str
+) -> list[str]:
+    """Rewrite the header's identifier fields to match the resolved task.
+
+    Mutates in place. Raises RuntimeError if the rewritten header's
+    recomputed identifier does not equal target_id (the perfect-match
+    guarantee). Returns the names of the fields that changed.
+    """
+    changed = [d.field for d in diff_fields(header, resolved)]
+    tf = target_fields(resolved)
+    e = header.eval
+    removed = set(e.task_args_passed) - set(tf["task_args_passed"])
+    e.task_args = {
+        k: v
+        for k, v in {**e.task_args, **tf["task_args_passed"]}.items()
+        if k not in removed
+    }
+    e.task_args_passed = dict(tf["task_args_passed"])
+    e.task_file = tf["task_file"]
+    e.task_version = tf["task_version"]
+    e.config.message_limit = tf["message_limit"]
+    e.config.token_limit = tf["token_limit"]
+    e.config.token_limit_type = tf["token_limit_type"]
+    e.config.turn_limit = tf["turn_limit"]
+    e.config.time_limit = tf["time_limit"]
+    e.config.working_limit = tf["working_limit"]
+    e.config.cost_limit = tf["cost_limit"]
+    e.model_args = tf["model_args"]
+    e.model_generate_config = tf["model_generate_config"]
+    e.model_roles = tf["model_roles"] or None
+    header.plan = tf["plan"]
+
+    new_id = task_identifier(header, None)
+    if new_id != target_id:
+        raise RuntimeError(
+            f"realign failed verification for {header.location}: "
+            f"rewritten identifier\n  {new_id}\ndoes not equal target\n  {target_id}"
+        )
+    return changed
