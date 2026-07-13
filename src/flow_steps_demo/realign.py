@@ -6,20 +6,29 @@ here, re-check these modules first.
 """
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
+from inspect_ai._eval.eval import eval_resolve_tasks
 from inspect_ai._eval.evalset import (
+    EvalSetArgsInTaskIdentifier,
     _GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
     model_args_for_log,
     model_roles_to_model_roles_config,
     plan_to_eval_plan,
     resolve_plan,
     resolve_solver,
+    task_identifier,
     to_json_safe,
 )
 from inspect_ai._eval.task.resolved import ResolvedTask
+from inspect_ai._util.file import absolute_file_path
 from inspect_ai.log import EvalLog
-from inspect_ai.model import GenerateConfig
+from inspect_ai.model import GenerateConfig, get_model
+from inspect_flow._config.load import ConfigOptions, int_load_spec
+from inspect_flow._runner.instantiate import instantiate_tasks
+from inspect_flow._types.flow_types import FlowOptions
+from inspect_flow._util.not_given import default_none
 from pydantic_core import to_json
 
 # Header fields that feed the task identifier, in display order. Model is
@@ -131,3 +140,30 @@ def diff_field_dicts(
 def diff_fields(header: EvalLog, resolved: ResolvedTask) -> list[FieldDiff]:
     """Field-by-field mismatch between a log header and a resolved spec task."""
     return diff_field_dicts(log_fields(header), target_fields(resolved))
+
+
+def resolve_spec_targets(
+    spec_file: str, spec_args: dict[str, Any] | None = None
+) -> dict[str, ResolvedTask]:
+    """Load a spec file and return {task_identifier: ResolvedTask}.
+
+    Follows the same resolution path flow run/check uses
+    (inspect_flow._runner.logs.get_task_ids_to_tasks), but keeps the
+    ResolvedTask so header field values can be extracted from it.
+    """
+    spec_path = absolute_file_path(spec_file)
+    spec = int_load_spec(spec_path, options=ConfigOptions(args=spec_args or {}))
+    instantiated = instantiate_tasks(spec, base_dir=str(Path(spec_path).parent))
+    options = spec.options or FlowOptions()
+    resolved, _ = eval_resolve_tasks(
+        tasks=[t.task for t in instantiated],
+        task_args={},
+        models=[get_model("none")],
+        model_roles=None,
+        config=GenerateConfig(),
+        approval=default_none(options.approval),
+        sandbox=default_none(options.sandbox),
+        sample_shuffle=default_none(options.sample_shuffle),
+    )
+    eval_set_args = EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+    return {task_identifier(rt, eval_set_args): rt for rt in resolved}
