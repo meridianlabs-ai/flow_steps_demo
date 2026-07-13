@@ -1,9 +1,6 @@
-import inspect
 from dataclasses import dataclass
-from typing import Any, Callable, cast
 
 from inspect_ai.log import EvalLog
-from inspect_ai._util.registry import registry_lookup
 
 from inspect_flow import step
 from inspect_flow.api import copy, scan, tag, metadata
@@ -18,7 +15,6 @@ from flow_steps_demo.constants import (
     TAG_QA_MANUAL_NEEDED,
     TAG_QA_MANUAL_DONE,
     TAG_PROMOTED,
-    TAG_REALIGNED,
 )
 from flow_steps_demo.scanners import REFUSAL_CLASSIFIER, refusal_classifier
 
@@ -26,93 +22,6 @@ from inspect_scout import scan_results_df
 from upath import UPath
 
 from flow_steps_demo.filters import qa_done
-
-
-def _ordered(args: dict[str, Any], signature_order: list[str]) -> dict[str, Any]:
-    """Rebuild `args` with keys in task-signature order."""
-    ordered = {k: args[k] for k in signature_order if k in args}
-    ordered.update({k: v for k, v in args.items() if k not in ordered})
-    return ordered
-
-
-def _signature_order(task: str) -> list[str] | None:
-    """Parameter order of a registered task, or None if it isn't importable here."""
-    fn = cast(Callable[..., Any] | None, registry_lookup("task", task))
-    if fn is None:
-        return None
-    return list(inspect.signature(fn).parameters)
-
-
-@step
-def align_task_args(
-    logs: list[EvalLog],
-    args: dict[str, Any],
-    dest: str,
-    task: str | None = None,
-    source_prefix: str | None = None,
-) -> list[EvalLog]:
-    """Copy logs and realign their task args so an updated task recognises them.
-
-    Adding an arg to a task (and passing it in the spec) changes the task
-    identifier, so Flow stops matching older logs. This step copies each log to
-    `dest`, injects `args` into the copy's `task_args`/`task_args_passed` in the
-    task's signature order, and tags it `realigned`. The recomputed identifier of
-    the copy matches the updated task, while the original log is left untouched
-    under its old identifier (non-destructive). When run with `--store`, the
-    copies are imported so re-runs match from the store too.
-
-    Only handles added or changed args. Removing an arg is not supported.
-
-    Run against the store (copies originals to `dest` and imports the copies):
-        flow step align_task_args --store @STORE_PATH --dest @LOG_DIR_DEV/realigned \\
-            --args cohort=pilot --task flow_steps_demo/alignment_probe
-
-    Run against a log dir or file (store NOT updated; import the copies after):
-        flow step align_task_args path/to/logs --dest path/to/realigned --args cohort=pilot
-        flow store import path/to/realigned --store @STORE_PATH -r
-
-    Args:
-        args: Task args to inject, keyed by arg name (e.g. {"cohort": "pilot"}).
-        dest: Directory to write the realigned copies to (must differ from the
-            source so originals are preserved).
-        task: If set, only process logs whose `eval.task` matches this registry name.
-        source_prefix: Directory prefix to strip from source paths, preserving
-            structure under `dest` (as in the `copy` step). Defaults to a flat copy.
-    """
-    if not args:
-        raise ValueError("`args` must contain at least one task arg to inject.")
-
-    # Select target logs first (task filter + signature guard) so we never copy
-    # logs we won't realign.
-    order_cache: dict[str, list[str] | None] = {}
-    targets: list[tuple[EvalLog, list[str]]] = []
-    for log in logs:
-        log_task = log.eval.task
-        if task is not None and log_task != task:
-            continue
-        order = order_cache.setdefault(log_task, _signature_order(log_task))
-        if order is None or not all(k in order for k in args):
-            continue
-        targets.append((log, order))
-
-    if not targets:
-        return []
-
-    # Copy the originals, then realign args on the copies (non-destructive).
-    copied = copy([log for log, _ in targets], dest=dest, source_prefix=source_prefix)
-
-    results: list[EvalLog] = []
-    for (original, order), c in zip(targets, copied):
-        c.eval.task_args = _ordered({**c.eval.task_args, **args}, order)
-        c.eval.task_args_passed = _ordered({**c.eval.task_args_passed, **args}, order)
-        # Provenance: record where the copy came from and what was injected.
-        [c] = metadata(
-            [c],
-            set={"realigned_from": original.location, "realigned_args": args},
-        )
-        results.append(c)
-
-    return tag(results, add=[TAG_REALIGNED])
 
 
 @step
