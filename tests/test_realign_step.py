@@ -73,3 +73,29 @@ def test_dest_must_differ_from_source_dir(tmp_path):
             spec_args={"model": "mockllm/model"},
             dest=str(tmp_path / "src"),
         )
+
+
+def test_dry_run_with_dest_writes_nothing(tmp_path):
+    targets = resolve_spec_targets(SPEC, {"model": "mockllm/model"})
+    target_id = next(iter(targets))
+    log_path = write_near_miss(tmp_path, targets, target_id)
+    dest = str(tmp_path / "realigned")
+
+    result = realign(
+        [log_path],
+        spec=SPEC,
+        spec_args={"model": "mockllm/model"},
+        dest=dest,
+        dry_run=True,
+    )
+    assert result == []
+    import os
+    assert not os.path.exists(dest) or os.listdir(dest) == []
+    # and a subsequent real run is NOT blocked by dry-run leftovers
+    result = realign(
+        [log_path],
+        spec=SPEC,
+        spec_args={"model": "mockllm/model"},
+        dest=dest,
+    )
+    assert len(result) == 1

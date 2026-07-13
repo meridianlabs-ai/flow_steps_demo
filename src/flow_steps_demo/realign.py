@@ -30,6 +30,7 @@ from inspect_ai.model import GenerateConfig, get_model
 from inspect_flow._config.load import ConfigOptions, int_load_spec
 from inspect_flow._runner.instantiate import instantiate_tasks
 from inspect_flow._runner.resolve import resolve_spec
+from inspect_flow._steps.context import step_context
 from inspect_flow._store.store import is_better_log
 from inspect_flow._types.flow_types import FlowOptions
 from inspect_flow._util.not_given import default_none
@@ -453,34 +454,47 @@ def realign(
     if dest is None:
         return []
 
-    results: list[EvalLog] = []
+    # Validate every chosen log's source directory against dest up front,
+    # before any copy happens, so a multi-directory input can't have some
+    # copies land on disk before an error aborts the step partway through.
+    dest_str = str(UPath(dest))
     for p in plans:
         for original in p.chosen:
             src_dir = str(UPath(original.location).parent)
-            if str(UPath(dest)) == src_dir:
+            if dest_str == src_dir:
                 raise ValueError(
                     f"dest must differ from the source directory: {src_dir}"
                 )
-            stem, ext = os.path.splitext(basename(original.location))
-            dest_path = f"{str(dest).rstrip('/')}/{stem}+realigned{ext}"
-            if UPath(dest_path).exists():
-                _console.print(f"    (exists, skipping: {dest_path})")
-                continue
-            copy_file(original.location, dest_path)
-            copy_header = read_eval_log(dest_path, header_only=True)
-            changed = apply_target_fields(copy_header, p.resolved, p.target_id)
-            [copy_header] = metadata(
-                [copy_header],
-                set={
-                    "realigned_from": original.location,
-                    "realigned_from_identifier": task_identifier(original, None),
-                    "realigned_fields": changed,
-                },
-            )
-            [copy_header] = tag(
-                [copy_header],
-                add=[TAG_REALIGNED],
-                reason="realigned to match spec: " + ", ".join(changed),
-            )
-            results.append(copy_header)
+
+    results: list[EvalLog] = []
+    with step_context(logs) as context:
+        for p in plans:
+            for original in p.chosen:
+                stem, ext = os.path.splitext(basename(original.location))
+                dest_path = f"{str(dest).rstrip('/')}/{stem}+realigned{ext}"
+                if UPath(dest_path).exists():
+                    _console.print(f"    (exists, skipping: {dest_path})")
+                    continue
+                if context.dry_run:
+                    _console.print(
+                        f"    would copy {original.location} -> {dest_path}"
+                    )
+                    continue
+                copy_file(original.location, dest_path)
+                copy_header = read_eval_log(dest_path, header_only=True)
+                changed = apply_target_fields(copy_header, p.resolved, p.target_id)
+                [copy_header] = metadata(
+                    [copy_header],
+                    set={
+                        "realigned_from": original.location,
+                        "realigned_from_identifier": task_identifier(original, None),
+                        "realigned_fields": changed,
+                    },
+                )
+                [copy_header] = tag(
+                    [copy_header],
+                    add=[TAG_REALIGNED],
+                    reason="realigned to match spec: " + ", ".join(changed),
+                )
+                results.append(copy_header)
     return results
