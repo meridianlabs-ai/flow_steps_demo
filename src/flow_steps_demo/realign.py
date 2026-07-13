@@ -5,7 +5,8 @@ inspect-flow 0.10.0 / inspect-ai 0.3.246. If an upgrade breaks an import
 here, re-check these modules first.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,7 @@ from inspect_ai.model import GenerateConfig, get_model
 from inspect_flow._config.load import ConfigOptions, int_load_spec
 from inspect_flow._runner.instantiate import instantiate_tasks
 from inspect_flow._runner.resolve import resolve_spec
+from inspect_flow._store.store import is_better_log
 from inspect_flow._types.flow_types import FlowOptions
 from inspect_flow._util.not_given import default_none
 from pydantic_core import to_json
@@ -170,3 +172,83 @@ def resolve_spec_targets(
     )
     eval_set_args = EvalSetArgsInTaskIdentifier(config=GenerateConfig())
     return {task_identifier(rt, eval_set_args): rt for rt in resolved}
+
+
+@dataclass
+class RealignPlan:
+    """Realignment decision for one spec task."""
+
+    target_id: str
+    resolved: ResolvedTask
+    perfect: EvalLog | None = None
+    chosen: list[EvalLog] = field(default_factory=list)
+    skipped: list[EvalLog] = field(default_factory=list)
+    incompatible: list[EvalLog] = field(default_factory=list)
+
+
+def _args_compatible(
+    log_args: dict[str, Any], target_args: dict[str, Any]
+) -> bool:
+    """True when the two arg dicts agree on every key they share.
+
+    Added/removed keys are exactly what realignment rewrites; conflicting
+    shared keys mean the log belongs to a different matrix combo.
+    """
+    return all(log_args[k] == target_args[k] for k in set(log_args) & set(target_args))
+
+
+def plan_realignment(
+    targets: dict[str, ResolvedTask],
+    logs: list[EvalLog],
+    task: str | None = None,
+    model: str | None = None,
+    realign_all: bool = False,
+) -> list[RealignPlan]:
+    """Pair each spec target with the near-miss logs that could be realigned to it."""
+    log_ids: dict[str, str] = {}
+    for log in logs:
+        try:
+            log_ids[log.location] = task_identifier(log, None)
+        except Exception:
+            continue  # malformed header: not a candidate
+
+    plans: list[RealignPlan] = []
+    for target_id, resolved in targets.items():
+        plan = RealignPlan(target_id=target_id, resolved=resolved)
+        target_args = resolved.task_args
+        candidates: list[EvalLog] = []
+        for log in logs:
+            log_id = log_ids.get(log.location)
+            if log_id is None:
+                continue
+            if log_id == target_id:
+                plan.perfect = log
+                break
+            if task and not fnmatch(log.eval.task, task):
+                continue
+            if model and not fnmatch(str(log.eval.model), model):
+                continue
+            if log.eval.task != resolved.task.name or str(log.eval.model) != str(
+                resolved.model
+            ):
+                continue
+            if _args_compatible(log.eval.task_args_passed, target_args):
+                candidates.append(log)
+            else:
+                plan.incompatible.append(log)
+
+        if plan.perfect is None and candidates:
+            # order best-first using flow's own store selection rule
+            ordered: list[EvalLog] = []
+            pool = list(candidates)
+            while pool:
+                best = None
+                for c in pool:
+                    if is_better_log(c, best):
+                        best = c
+                ordered.append(best)
+                pool.remove(best)
+            plan.chosen = ordered if realign_all else ordered[:1]
+            plan.skipped = [] if realign_all else ordered[1:]
+        plans.append(plan)
+    return plans
