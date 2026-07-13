@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Demo project showcasing step-based workflow execution using Flow"
 requires-python = ">=3.10,<3.14"
 dependencies = [
-    "inspect-flow>=0.9.0",
+    "inspect-flow>=0.10.0",
     "inspect-scout",
     "openai",
     "anthropic",
