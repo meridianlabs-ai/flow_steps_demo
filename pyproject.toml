@@ -17,3 +17,6 @@ dependencies = [
 
 [project.entry-points.inspect_ai]
 flow_steps_demo = "flow_steps_demo._flow"
+
+[dependency-groups]
+dev = ["pytest>=8"]
