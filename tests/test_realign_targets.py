@@ -21,5 +21,4 @@ def test_target_fields_shape():
         "training_protocol",
         "misalignment_type",
         "theme",
-        "cohort",
     }

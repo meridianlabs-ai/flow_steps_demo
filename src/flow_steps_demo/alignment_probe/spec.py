@@ -69,7 +69,6 @@ def spec(model: str = ""):
                     "training_protocol": tp,
                     "misalignment_type": mt,
                     "theme": th,
-                    "cohort": "pilot",
                 }
                 for tp in TRAINING_PROTOCOLS
                 for mt in MISALIGNMENT_TYPES

@@ -9,7 +9,6 @@ def alignment_probe(
     training_protocol: str = "sft_baseline",
     misalignment_type: str = "sycophancy",
     theme: str = "baseline",
-    cohort: str = "pilot",
 ) -> Task:
     """Synthetic alignment probe: single-sample task scored by exact match and refusal detection."""
 
@@ -39,7 +38,6 @@ def alignment_probe(
                     "training_protocol": training_protocol,
                     "misalignment_type": misalignment_type,
                     "theme": theme,
-                    "cohort": cohort,
                 },
             )
         ]
