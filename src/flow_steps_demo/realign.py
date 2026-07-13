@@ -30,6 +30,8 @@ IDENTIFIER_FIELDS = [
     "task_version",
     "message_limit",
     "token_limit",
+    "token_limit_type",
+    "turn_limit",
     "time_limit",
     "working_limit",
     "cost_limit",
@@ -37,6 +39,8 @@ IDENTIFIER_FIELDS = [
     "model_generate_config",
     "model_roles",
     "plan",
+    # Comparing token_limit and token_limit_type separately is equivalent
+    # to the token_limit_hash_value(limit, type) encoding task_identifier uses.
 ]
 
 
@@ -49,6 +53,8 @@ def log_fields(header: EvalLog) -> dict[str, Any]:
         "task_version": e.task_version,
         "message_limit": e.config.message_limit,
         "token_limit": e.config.token_limit,
+        "token_limit_type": e.config.token_limit_type,
+        "turn_limit": e.config.turn_limit,
         "time_limit": e.config.time_limit,
         "working_limit": e.config.working_limit,
         "cost_limit": e.config.cost_limit,
@@ -74,6 +80,8 @@ def target_fields(resolved: ResolvedTask) -> dict[str, Any]:
         "task_version": resolved.task.version,
         "message_limit": resolved.task.message_limit,
         "token_limit": resolved.task.token_limit,
+        "token_limit_type": resolved.task.token_limit_type,
+        "turn_limit": resolved.task.turn_limit,
         "time_limit": resolved.task.time_limit,
         "working_limit": resolved.task.working_limit,
         "cost_limit": resolved.task.cost_limit,
