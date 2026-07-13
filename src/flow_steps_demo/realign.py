@@ -184,6 +184,7 @@ class RealignPlan:
     chosen: list[EvalLog] = field(default_factory=list)
     skipped: list[EvalLog] = field(default_factory=list)
     incompatible: list[EvalLog] = field(default_factory=list)
+    ambiguous: list[EvalLog] = field(default_factory=list)
 
 
 def _args_compatible(
@@ -204,7 +205,19 @@ def plan_realignment(
     model: str | None = None,
     realign_all: bool = False,
 ) -> list[RealignPlan]:
-    """Pair each spec target with the near-miss logs that could be realigned to it."""
+    """Pair each spec target with the near-miss logs that could be realigned to it.
+
+    A log identifier-equal to a target is a perfect match for it; that plan's
+    other buckets are left empty since a perfect match makes them moot.
+    Otherwise, a log is a candidate for a (non-perfectly-matched) target only
+    if it shares the target's task/model and every task arg key it shares
+    with the target agrees - added/removed keys (e.g. a new matrix
+    dimension) are exactly what realignment rewrites, conflicting shared
+    keys mean the log belongs to a different matrix combo. A log compatible
+    with more than one target this way is ambiguous: which target it really
+    belongs to is a judgment call, so it is reported in `ambiguous` on every
+    plan it matches rather than silently claimed by one.
+    """
     log_ids: dict[str, str] = {}
     for log in logs:
         try:
@@ -212,43 +225,62 @@ def plan_realignment(
         except Exception:
             continue  # malformed header: not a candidate
 
-    plans: list[RealignPlan] = []
-    for target_id, resolved in targets.items():
-        plan = RealignPlan(target_id=target_id, resolved=resolved)
-        target_args = resolved.task_args
-        candidates: list[EvalLog] = []
-        for log in logs:
-            log_id = log_ids.get(log.location)
-            if log_id is None:
-                continue
-            if log_id == target_id:
-                plan.perfect = log
-                break
-            if task and not fnmatch(log.eval.task, task):
-                continue
-            if model and not fnmatch(str(log.eval.model), model):
-                continue
+    plans: dict[str, RealignPlan] = {
+        target_id: RealignPlan(target_id=target_id, resolved=resolved)
+        for target_id, resolved in targets.items()
+    }
+
+    # Pass 1: perfect (identifier-equal) matches claim their target outright.
+    for log in logs:
+        log_id = log_ids.get(log.location)
+        if log_id in plans:
+            plans[log_id].perfect = log
+
+    non_perfect = [plan for plan in plans.values() if plan.perfect is None]
+    candidates: dict[str, list[EvalLog]] = {plan.target_id: [] for plan in non_perfect}
+
+    # Pass 2: for the remaining targets, work out how many of them each log is
+    # compatible with before assigning it anywhere, so a log that fits more
+    # than one target becomes ambiguous instead of being claimed by whichever
+    # target happened to be visited first.
+    for log in logs:
+        if log_ids.get(log.location) is None:
+            continue
+        if task and not fnmatch(log.eval.task, task):
+            continue
+        if model and not fnmatch(str(log.eval.model), model):
+            continue
+        compatible: list[RealignPlan] = []
+        for plan in non_perfect:
+            resolved = plan.resolved
             if log.eval.task != resolved.task.name or str(log.eval.model) != str(
                 resolved.model
             ):
                 continue
-            if _args_compatible(log.eval.task_args_passed, target_args):
-                candidates.append(log)
+            if _args_compatible(log.eval.task_args_passed, resolved.task_args):
+                compatible.append(plan)
             else:
                 plan.incompatible.append(log)
+        if len(compatible) == 1:
+            candidates[compatible[0].target_id].append(log)
+        elif len(compatible) > 1:
+            for plan in compatible:
+                plan.ambiguous.append(log)
 
-        if plan.perfect is None and candidates:
-            # order best-first using flow's own store selection rule
-            ordered: list[EvalLog] = []
-            pool = list(candidates)
-            while pool:
-                best = None
-                for c in pool:
-                    if is_better_log(c, best):
-                        best = c
-                ordered.append(best)
-                pool.remove(best)
-            plan.chosen = ordered if realign_all else ordered[:1]
-            plan.skipped = [] if realign_all else ordered[1:]
-        plans.append(plan)
-    return plans
+    for plan in non_perfect:
+        pool = list(candidates[plan.target_id])
+        if not pool:
+            continue
+        # order best-first using flow's own store selection rule
+        ordered: list[EvalLog] = []
+        while pool:
+            best = None
+            for c in pool:
+                if is_better_log(c, best):
+                    best = c
+            ordered.append(best)
+            pool.remove(best)
+        plan.chosen = ordered if realign_all else ordered[:1]
+        plan.skipped = [] if realign_all else ordered[1:]
+
+    return list(plans.values())
