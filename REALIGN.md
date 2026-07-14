@@ -202,8 +202,20 @@ uv run flow run src/flow_steps_demo/alignment_probe/spec.py \
 # expect: 27 complete, 0 tasks to run.
 
 # 7. Revert the task/spec edits and remove ./output-walkthrough when done.
+#    This also removes the walkthrough's flow store: STORE_PATH derives from
+#    FLOW_DEMO_BUCKET, so the store index lives at ./output-walkthrough/store
+#    and every walkthrough run registered its logs there, not in your real
+#    store.
 git checkout -- src/flow_steps_demo/alignment_probe/
 rm -rf ./output-walkthrough
+
+# If any walkthrough command ran in a shell WITHOUT FLOW_DEMO_BUCKET set, its
+# logs and store entries landed in the default ./output bucket instead. Check
+# for strays and drop them from the real store:
+#   uv run flow list log --task '*alignment_probe*' --model mockllm/model
+#   uv run flow store remove <stray-log-dir> --store ./output/store
+# (After deleting stray files by hand, `flow store remove --missing` clears
+# the dangling index entries.)
 ```
 
 **Note:** step 5 above uses a plain directory `PATH` for clarity, but the
@@ -211,4 +223,7 @@ production usage is `--store @STORE_PATH` in place of `PATH` — with a
 store, matching logs are found across the whole store (not just one
 directory) and the realigned copies are imported back into the store
 automatically as part of the same step, rather than requiring a
-separate import pass.
+separate import pass. To undo a realignment done this way, remove the
+copies from the store index (`flow store remove <dest-dir> --store ...`)
+before deleting the files — the originals were never touched, so nothing
+else needs restoring.
