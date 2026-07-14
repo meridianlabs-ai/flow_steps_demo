@@ -58,6 +58,10 @@ from inspect_flow.api import metadata, tag
 
 from flow_steps_demo.constants import TAG_REALIGNED
 
+# All user-facing terminal output (explain report, dry-run lines) goes
+# through this shared rich console.
+_console = Console()
+
 # Header fields that feed the task identifier, in display order. Model is
 # deliberately absent: it is the pairing criterion, never rewritten.
 IDENTIFIER_FIELDS = [
@@ -377,9 +381,6 @@ def apply_target_fields(
             f"rewritten identifier\n  {new_id}\ndoes not equal target\n  {target_id}"
         )
     return changed
-
-
-_console = Console()
 
 
 def _short(value: Any) -> str:
