@@ -14,6 +14,8 @@ This project implements a multi-stage QA pipeline for alignment evaluation. It d
 
 The scenario: we run a synthetic alignment probe against multiple models, automatically scan responses for refusals, manually review the results, and promote passing logs to a production directory.
 
+See [REALIGN.md](REALIGN.md) for a guide to the `realign` step, which realigns logs to a changed task spec without re-running evaluations.
+
 ## Prerequisites
 
 1. **Clone and install**
@@ -54,9 +56,12 @@ src/flow_steps_demo/
 ├── scanners.py                  # Scout scanners (refusal_keywords, refusal_classifier)
 ├── filters.py                   # Log filters (qa_done, scan_has_refusal)
 ├── steps.py                     # Flow steps (qa_auto, manual_review_done, promote)
+├── realign.py                   # Flow step (realign) — spec-driven log realignment
 └── alignment_probe/
     ├── task.py                  # @task alignment_probe — synthetic eval task
     └── spec.py                  # FlowSpec factory — parametric sweep across models
+REALIGN.md                        # Guide to the realign step
+tests/                             # Test suite
 ```
 
 ## Walkthrough

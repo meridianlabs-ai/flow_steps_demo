@@ -9,6 +9,7 @@ from flow_steps_demo.steps import (
     manual_review_done,
     promote,
 )  # noqa: F401 — registered for discovery
+from flow_steps_demo.realign import realign  # noqa: F401 — registered for discovery
 from flow_steps_demo.constants import (
     STORE_PATH,
     LOG_DIR_DEV,
