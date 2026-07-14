@@ -84,6 +84,120 @@ IDENTIFIER_FIELDS = [
 ]
 
 
+@step
+def realign(
+    logs: list[EvalLog],
+    spec: str,
+    spec_args: dict[str, Any] | None = None,
+    dest: str | None = None,
+    task: str | None = None,
+    model: str | None = None,
+    realign_all: bool = False,
+) -> list[EvalLog]:
+    """Copy near-miss logs and rewrite their headers to match a changed spec.
+
+    For each spec task without a perfect match, finds near-miss logs (same
+    task and model, task args agreeing on all shared keys), copies the best
+    one to `dest` with a `+realigned` filename suffix, rewrites every
+    identifier-relevant header field from the spec, verifies the recomputed
+    identifier matches exactly, and records provenance (tag + metadata).
+    Originals are never modified. Without `dest`, prints the field-by-field
+    mismatch report and writes nothing (explain mode).
+
+    Explain why logs don't match:
+        flow step realign --store @STORE_PATH \\
+            --spec src/flow_steps_demo/alignment_probe/spec.py \\
+            --spec-args model=openai/gpt-4o
+
+    Realign (with --store the copies are imported automatically):
+        flow step realign --store @STORE_PATH --spec ... --spec-args ... \\
+            --dest @LOG_DIR_DEV/realigned
+
+    Args:
+        spec: Path to the spec file defining the target tasks.
+        spec_args: Args forwarded to the spec function (e.g. model=...).
+        dest: Directory for realigned copies (must differ from the source
+            directory). Omit to run in explain mode.
+        task: Only consider logs whose eval.task matches this glob.
+        model: Only consider logs whose eval.model matches this glob.
+        realign_all: Realign every near-miss instead of only the best one.
+    """
+    targets = resolve_spec_targets(spec, spec_args)
+    plans = plan_realignment(
+        targets, logs, task=task, model=model, realign_all=realign_all
+    )
+    _print_report(plans)
+    if dest is None:
+        return []
+
+    # Validate every chosen log's source directory against dest up front,
+    # before any copy happens, so a multi-directory input can't have some
+    # copies land on disk before an error aborts the step partway through.
+    dest_str = str(UPath(dest))
+    for p in plans:
+        for original in p.chosen:
+            src_dir = str(UPath(original.location).parent)
+            if dest_str == src_dir:
+                raise ValueError(
+                    f"dest must differ from the source directory: {src_dir}"
+                )
+
+    results: list[EvalLog] = []
+    # Re-entrant context + upfront flush + dry_run gate follow the built-in
+    # copy step (inspect_flow/_steps/copy.py @ 0.10.0). This loop is inlined
+    # only because copy can't rename copies (the +realigned suffix); if
+    # https://github.com/meridianlabs-ai/inspect_flow/issues/756 lands,
+    # replace it with the built-in copy step + the rewrite pass.
+    with step_context(logs) as context:
+        context.write_dirty()
+        for p in plans:
+            for original in p.chosen:
+                stem, ext = os.path.splitext(basename(original.location))
+                dest_path = f"{str(dest).rstrip('/')}/{stem}+realigned{ext}"
+                if UPath(dest_path).exists():
+                    if context.dry_run:
+                        _console.print(f"    (exists, would reuse: {dest_path})")
+                        continue
+                    # Reuse a copy from a previous run so re-runs are
+                    # idempotent and downstream steps still see it - but only
+                    # if it matches the current target (it may be stale from
+                    # an older spec revision).
+                    existing = read_eval_log(dest_path, header_only=True)
+                    if task_identifier(existing, None) == p.target_id:
+                        _console.print(f"    (exists, reusing: {dest_path})")
+                        results.append(existing)
+                    else:
+                        _console.print(
+                            f"    (exists but does not match the current "
+                            f"target - created from an older spec? remove it "
+                            f"or use a fresh --dest: {dest_path})"
+                        )
+                    continue
+                if context.dry_run:
+                    _console.print(
+                        f"    would copy {original.location} -> {dest_path}"
+                    )
+                    continue
+                copy_file(original.location, dest_path)
+                copy_header = read_eval_log(dest_path, header_only=True)
+                changed = apply_target_fields(copy_header, p.resolved, p.target_id)
+                [copy_header] = metadata(
+                    [copy_header],
+                    set={
+                        "realigned_from": original.location,
+                        "realigned_from_identifier": task_identifier(original, None),
+                        "realigned_fields": changed,
+                    },
+                )
+                [copy_header] = tag(
+                    [copy_header],
+                    add=[TAG_REALIGNED],
+                    reason="realigned to match spec: " + ", ".join(changed),
+                )
+                results.append(copy_header)
+    return results
+
+
 def log_fields(header: EvalLog) -> dict[str, Any]:
     """Identifier-relevant fields as stored in a log header.
 
@@ -425,11 +539,6 @@ def _print_report(plans: list[RealignPlan]) -> None:
                 _print_field_diff(d)
         for log in p.skipped:
             _console.print(f"    (skipped duplicate: {log.location})")
-        for log in p.incompatible:
-            _console.print(
-                f"    (conflicting args, pass its path explicitly to force: "
-                f"{log.location})"
-            )
         for log in p.ambiguous:
             _console.print(
                 f"    (matches multiple targets — narrow the spec with "
@@ -439,97 +548,22 @@ def _print_report(plans: list[RealignPlan]) -> None:
     if unmatched:
         _console.print(f"  [red]✗[/red] {len(unmatched)} task(s) have no candidate logs")
 
-
-@step
-def realign(
-    logs: list[EvalLog],
-    spec: str,
-    spec_args: dict[str, Any] | None = None,
-    dest: str | None = None,
-    task: str | None = None,
-    model: str | None = None,
-    realign_all: bool = False,
-) -> list[EvalLog]:
-    """Copy near-miss logs and rewrite their headers to match a changed spec.
-
-    For each spec task without a perfect match, finds near-miss logs (same
-    task and model, task args agreeing on all shared keys), copies the best
-    one to `dest` with a `+realigned` filename suffix, rewrites every
-    identifier-relevant header field from the spec, verifies the recomputed
-    identifier matches exactly, and records provenance (tag + metadata).
-    Originals are never modified. Without `dest`, prints the field-by-field
-    mismatch report and writes nothing (explain mode).
-
-    Explain why logs don't match:
-        flow step realign --store @STORE_PATH \\
-            --spec src/flow_steps_demo/alignment_probe/spec.py \\
-            --spec-args model=openai/gpt-4o
-
-    Realign (with --store the copies are imported automatically):
-        flow step realign --store @STORE_PATH --spec ... --spec-args ... \\
-            --dest @LOG_DIR_DEV/realigned
-
-    Args:
-        spec: Path to the spec file defining the target tasks.
-        spec_args: Args forwarded to the spec function (e.g. model=...).
-        dest: Directory for realigned copies (must differ from the source
-            directory). Omit to run in explain mode.
-        task: Only consider logs whose eval.task matches this glob.
-        model: Only consider logs whose eval.model matches this glob.
-        realign_all: Realign every near-miss instead of only the best one.
-    """
-    targets = resolve_spec_targets(spec, spec_args)
-    plans = plan_realignment(
-        targets, logs, task=task, model=model, realign_all=realign_all
-    )
-    _print_report(plans)
-    if dest is None:
-        return []
-
-    # Validate every chosen log's source directory against dest up front,
-    # before any copy happens, so a multi-directory input can't have some
-    # copies land on disk before an error aborts the step partway through.
-    dest_str = str(UPath(dest))
+    # In a matrix spec every log is "incompatible" with all sibling combos,
+    # so per-target listings drown the report (27 targets x 26 logs). Only a
+    # log that matched NOWHERE (no perfect/chosen/skipped/ambiguous slot on
+    # any target) is worth surfacing, once.
+    placed = {
+        log.location
+        for p in plans
+        for log in ([p.perfect] if p.perfect else []) + p.chosen + p.skipped + p.ambiguous
+    }
+    orphans: dict[str, None] = {}  # insertion-ordered unique locations
     for p in plans:
-        for original in p.chosen:
-            src_dir = str(UPath(original.location).parent)
-            if dest_str == src_dir:
-                raise ValueError(
-                    f"dest must differ from the source directory: {src_dir}"
-                )
-
-    results: list[EvalLog] = []
-    # Re-entrant context + upfront flush + dry_run gate follow the built-in
-    # copy step (inspect_flow/_steps/copy.py @ 0.10.0).
-    with step_context(logs) as context:
-        context.write_dirty()
-        for p in plans:
-            for original in p.chosen:
-                stem, ext = os.path.splitext(basename(original.location))
-                dest_path = f"{str(dest).rstrip('/')}/{stem}+realigned{ext}"
-                if UPath(dest_path).exists():
-                    _console.print(f"    (exists, skipping: {dest_path})")
-                    continue
-                if context.dry_run:
-                    _console.print(
-                        f"    would copy {original.location} -> {dest_path}"
-                    )
-                    continue
-                copy_file(original.location, dest_path)
-                copy_header = read_eval_log(dest_path, header_only=True)
-                changed = apply_target_fields(copy_header, p.resolved, p.target_id)
-                [copy_header] = metadata(
-                    [copy_header],
-                    set={
-                        "realigned_from": original.location,
-                        "realigned_from_identifier": task_identifier(original, None),
-                        "realigned_fields": changed,
-                    },
-                )
-                [copy_header] = tag(
-                    [copy_header],
-                    add=[TAG_REALIGNED],
-                    reason="realigned to match spec: " + ", ".join(changed),
-                )
-                results.append(copy_header)
-    return results
+        for log in p.incompatible:
+            if log.location not in placed:
+                orphans[log.location] = None
+    for location in orphans:
+        _console.print(
+            f"  (conflicting args with every target, pass its path "
+            f"explicitly to force: {location})"
+        )

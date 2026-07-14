@@ -1,6 +1,6 @@
 from inspect_ai._eval.evalset import task_identifier
 
-from flow_steps_demo.realign import plan_realignment, resolve_spec_targets
+from flow_steps_demo.realign import _print_report, plan_realignment, resolve_spec_targets
 
 SPEC = "src/flow_steps_demo/alignment_probe/spec.py"
 ARGS = {"training_protocol": "sft_baseline", "misalignment_type": "sycophancy"}
@@ -132,3 +132,26 @@ def test_log_missing_matrix_key_is_ambiguous(make_header):
     ambiguous_plans = [p for p in plans if p.ambiguous]
     assert len(ambiguous_plans) == 3
     assert all(p.ambiguous[0].location == "logs/ambiguous.eval" for p in ambiguous_plans)
+
+
+def test_report_lists_conflicts_once_and_only_for_unplaced_logs(make_header, capsys):
+    targets = targets_for_mockllm()
+    # near-miss for its own combo target (version bump) -> chosen there, so it
+    # must NOT be reported as conflicting on the 26 sibling targets
+    combo = make_header(
+        task_args={**ARGS, "theme": "baseline"},
+        task_version=1,
+        location="logs/combo.eval",
+    )
+    # conflicts with every target -> reported, exactly once
+    orphan = make_header(
+        task_args={**ARGS, "theme": "not_a_real_theme"},
+        task_version=1,
+        location="logs/orphan.eval",
+    )
+    plans = plan_realignment(targets, [combo, orphan])
+    _print_report(plans)
+    out = capsys.readouterr().out
+    assert "candidate" in out and "combo.eval" in out
+    assert out.count("conflicting") == 1
+    assert "orphan.eval" in out

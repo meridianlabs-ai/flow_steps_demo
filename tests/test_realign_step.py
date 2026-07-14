@@ -1,3 +1,4 @@
+import os
 from inspect_ai._eval.evalset import task_identifier
 from inspect_ai.log import read_eval_log, write_eval_log
 
@@ -99,3 +100,40 @@ def test_dry_run_with_dest_writes_nothing(tmp_path):
         dest=dest,
     )
     assert len(result) == 1
+
+
+def test_rerun_reuses_existing_matching_copy(tmp_path):
+    targets = resolve_spec_targets(SPEC, {"model": "mockllm/model"})
+    target_id = next(iter(targets))
+    log_path = write_near_miss(tmp_path, targets, target_id)
+    dest = str(tmp_path / "realigned")
+
+    first = realign(
+        [log_path], spec=SPEC, spec_args={"model": "mockllm/model"}, dest=dest
+    )
+    second = realign(
+        [log_path], spec=SPEC, spec_args={"model": "mockllm/model"}, dest=dest
+    )
+    assert [log.location for log in second] == [log.location for log in first]
+    assert task_identifier(second[0], None) == target_id
+
+
+def test_rerun_warns_on_stale_existing_copy(tmp_path, capsys):
+    targets = resolve_spec_targets(SPEC, {"model": "mockllm/model"})
+    target_id = next(iter(targets))
+    log_path = write_near_miss(tmp_path, targets, target_id)
+    dest = tmp_path / "realigned"
+
+    # plant a non-matching file at the destination path the copy would use
+    dest.mkdir()
+    stale = read_eval_log(log_path, header_only=True)
+    stale.eval.task_version = 123  # matches neither original nor target
+    name = os.path.basename(log_path)
+    stem, ext = os.path.splitext(name)
+    write_eval_log(stale, str(dest / f"{stem}+realigned{ext}"))
+
+    result = realign(
+        [log_path], spec=SPEC, spec_args={"model": "mockllm/model"}, dest=str(dest)
+    )
+    assert result == []
+    assert "does not match the current target" in capsys.readouterr().out
