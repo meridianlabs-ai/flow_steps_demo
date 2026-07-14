@@ -3,6 +3,21 @@
 Relies on private inspect_flow / inspect_ai APIs, validated against
 inspect-flow 0.10.0 / inspect-ai 0.3.246. If an upgrade breaks an import
 here, re-check these modules first.
+
+Several functions deliberately mirror upstream code line-for-line so drift
+can be spotted by diffing side by side (line numbers as of the versions
+above):
+
+- log_fields / target_fields / _norm mirror the two branches and the hash
+  serialization of task_identifier, inspect_ai/_eval/evalset.py:1286-1429
+- resolve_spec_targets mirrors get_task_ids_to_tasks,
+  inspect_flow/_runner/logs.py:80-114, and the load->resolve->instantiate
+  ordering of _prepare_run, inspect_flow/_runner/run.py:81-127
+- the realign step's copy loop follows the built-in copy step's
+  write_dirty/dry_run pattern, inspect_flow/_steps/copy.py
+
+If the identifier algorithm changes upstream, apply_target_fields' verify
+assert fails loudly rather than producing non-matching copies.
 """
 
 import os
@@ -66,7 +81,11 @@ IDENTIFIER_FIELDS = [
 
 
 def log_fields(header: EvalLog) -> dict[str, Any]:
-    """Identifier-relevant fields as stored in a log header."""
+    """Identifier-relevant fields as stored in a log header.
+
+    Mirrors the EvalLog branch of task_identifier
+    (inspect_ai/_eval/evalset.py:1354-1374 @ 0.3.246).
+    """
     e = header.eval
     return {
         "task_file": e.task_file or None,
@@ -89,9 +108,13 @@ def log_fields(header: EvalLog) -> dict[str, Any]:
 def target_fields(resolved: ResolvedTask) -> dict[str, Any]:
     """Identifier-relevant fields of a resolved spec task, in header shape.
 
-    Mirrors the ResolvedTask branch of inspect_ai's task_identifier with the
-    same EvalSetArgs Flow passes (empty GenerateConfig, no solver, no limits).
+    Mirrors the ResolvedTask branch of inspect_ai's task_identifier
+    (inspect_ai/_eval/evalset.py:1314-1353 @ 0.3.246) with the same
+    EvalSetArgs Flow passes (empty GenerateConfig, no solver, no limits).
     """
+    # Upstream, resolve_solver normalizes an eval-set-level solver override
+    # (Solver/SolverSpec/Agent/list). Flow never passes one, so this is a
+    # no-op returning None kept for 1:1 correspondence with the original.
     solver = resolve_solver(None)
     plan = resolve_plan(resolved.task, solver)
     eval_plan = plan_to_eval_plan(plan, resolved.task.config.merge(GenerateConfig()))
@@ -114,7 +137,12 @@ def target_fields(resolved: ResolvedTask) -> dict[str, Any]:
 
 
 def _norm(field_name: str, value: Any) -> bytes:
-    """Serialize a field value the way task_identifier hashes it."""
+    """Serialize a field value the way task_identifier hashes it.
+
+    Mirrors the hash-input serialization of task_identifier — plan stripped
+    of finish/per-step params, generate-config transient fields excluded
+    (inspect_ai/_eval/evalset.py:1375-1426 @ 0.3.246).
+    """
     if field_name == "plan":
         value = value.model_copy(
             update={
@@ -159,8 +187,11 @@ def resolve_spec_targets(
 ) -> dict[str, ResolvedTask]:
     """Load a spec file and return {task_identifier: ResolvedTask}.
 
-    Follows the same resolution path flow run/check uses
-    (inspect_flow._runner.logs.get_task_ids_to_tasks), but keeps the
+    Follows the same resolution path flow run/check uses — the
+    load -> resolve_spec -> instantiate ordering of _prepare_run
+    (inspect_flow/_runner/run.py:81-127 @ 0.10.0) and the
+    eval_resolve_tasks/task_identifier calls of get_task_ids_to_tasks
+    (inspect_flow/_runner/logs.py:80-114 @ 0.10.0) — but keeps the
     ResolvedTask so header field values can be extracted from it.
     """
     spec_path = absolute_file_path(spec_file)
@@ -467,6 +498,8 @@ def realign(
                 )
 
     results: list[EvalLog] = []
+    # Re-entrant context + upfront flush + dry_run gate follow the built-in
+    # copy step (inspect_flow/_steps/copy.py @ 0.10.0).
     with step_context(logs) as context:
         context.write_dirty()
         for p in plans:
