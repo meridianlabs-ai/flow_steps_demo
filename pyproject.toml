@@ -17,3 +17,21 @@ dependencies = [
 
 [project.entry-points.inspect_ai]
 flow_steps_demo = "flow_steps_demo._flow"
+
+[tool.uv]
+# 0.11.8 is the first uv that keeps uv.lock stable with a relative exclude-newer,
+# and 0.13.4 the first that no longer trusts the compromised emSign root
+# (GHSA-hq85-5cpj-mr62).
+required-version = ">=0.13.4"
+# Only resolve releases at least 7 days old. A compromised release is usually
+# found and removed within that time, before it reaches uv.lock.
+exclude-newer = "7 days"
+
+# 6 hours only for direct dependencies that are a model provider SDK or an
+# Inspect package, so the demo can adopt a new release the day it ships.
+[tool.uv.exclude-newer-package]
+anthropic = "6 hours"
+inspect-flow = "6 hours"
+inspect-scout = "6 hours"
+openai = "6 hours"
+xai-sdk = "6 hours"

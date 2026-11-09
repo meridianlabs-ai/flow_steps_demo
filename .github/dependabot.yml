@@ -1,0 +1,35 @@
+version: 2
+
+updates:
+  # Bumps uv.lock. The cooldown matches `exclude-newer` in pyproject.toml, and
+  # its exclude list matches the "6 hours" entries in `exclude-newer-package`
+  # there: Dependabot's cooldown counts whole days, so those packages' 6-hour
+  # cooldown is left to uv. They get their own group, so a broken update
+  # elsewhere can't hold them up. It comes first because a package that
+  # matches both groups goes to the first. Security updates skip the cooldown.
+  - package-ecosystem: uv
+    versioning-strategy: lockfile-only
+    directory: /
+    schedule:
+      interval: daily
+    cooldown:
+      default-days: 7
+      exclude:
+        - "anthropic"
+        - "inspect-flow"
+        - "inspect-scout"
+        - "openai"
+        - "xai-sdk"
+    groups:
+      six-hour-cooldown:
+        patterns:
+          - "anthropic"
+          - "inspect-flow"
+          - "inspect-scout"
+          - "openai"
+          - "xai-sdk"
+      python-packages:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: build
