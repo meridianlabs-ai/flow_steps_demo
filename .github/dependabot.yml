@@ -33,3 +33,5 @@ updates:
           - "*"
     commit-message:
       prefix: build
+    assignees:
+      - epatey
